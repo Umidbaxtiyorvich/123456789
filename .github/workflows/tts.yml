@@ -1,0 +1,19 @@
+name: uzbek-tts
+on:
+  push:
+    paths: ["tts/lines.txt", "tts/run.py", ".github/workflows/tts.yml"]
+permissions:
+  contents: write
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install soundfile numpy
+      - run: wget -q https://models.silero.ai/models/tts/uz/v4_uz.pt
+      - run: python tts/run.py
+      - run: |
+          git config user.name "tts-bot"; git config user.email "tts-bot@users.noreply.github.com"
+          git add tts/out && git commit -m "tts audio" && git push
