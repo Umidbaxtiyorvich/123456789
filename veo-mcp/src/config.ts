@@ -31,10 +31,9 @@ export const config = {
 
 /** Veo models available through the Gemini API (all Veo 3.x models generate audio natively). */
 export const MODELS: Record<string, string> = {
-  "veo-3.1-generate-preview": "Veo 3.1 — eng yuqori sifat, ovoz bilan (8 s, 720p/1080p)",
+  "veo-3.1-generate-preview": "Veo 3.1 — eng yuqori sifat, ovoz bilan",
   "veo-3.1-fast-generate-preview": "Veo 3.1 Fast — tezroq va arzonroq, ovoz bilan",
-  "veo-3.0-generate-001": "Veo 3 — barqaror versiya, ovoz bilan",
-  "veo-3.0-fast-generate-001": "Veo 3 Fast — barqaror, tez, ovoz bilan",
+  "veo-3.1-lite-generate-preview": "Veo 3.1 Lite — eng arzon, ovoz bilan",
 };
 
 export function validateConfig(): void {

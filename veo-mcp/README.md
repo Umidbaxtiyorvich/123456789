@@ -10,7 +10,7 @@ Claude uchun remote MCP server (Streamable HTTP). U Google **Veo 3.x** (ovozli v
 | `check_video_status` | `operation_id` bo'yicha holatni tekshiradi. Video tayyor bo'lsa, uni serverga yuklab oladi va `https://.../videos/<id>.mp4` havolasini qaytaradi. Xato yoki xavfsizlik bloki bo'lsa, aniq sababini aytadi. |
 | `list_videos` | Oxirgi videolar ro'yxati: havola, prompt va holat. |
 
-**Modellar:** `veo-3.1-generate-preview` (standart), `veo-3.1-fast-generate-preview`, `veo-3.0-generate-001`, `veo-3.0-fast-generate-001`. Google yangi model chiqarsa, uning nomini `model` maydoniga yozish kifoya (`veo-` bilan boshlanadigan har qanday nom qabul qilinadi). Standart modelni `DEFAULT_VEO_MODEL` o'zgaruvchisi bilan almashtirish mumkin.
+**Modellar:** `veo-3.1-generate-preview` (standart), `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview`. Google yangi model chiqarsa, uning nomini `model` maydoniga yozish kifoya (`veo-` bilan boshlanadigan har qanday nom qabul qilinadi). Standart modelni `DEFAULT_VEO_MODEL` o'zgaruvchisi bilan almashtirish mumkin.
 
 Bosh sahifa (`/`) server holatini va barcha videolarni play tugmasi bilan ko'rsatadi. Videolar 7 kundan keyin avtomatik o'chiriladi.
 
@@ -21,7 +21,7 @@ Bosh sahifa (`/`) server holatini va barcha videolarni play tugmasi bilan ko'rsa
 1. https://aistudio.google.com saytiga Google akkauntingiz bilan kiring.
 2. Chap menyuda **Get API key** (yoki to'g'ridan-to'g'ri https://aistudio.google.com/apikey) → **Create API key** tugmasini bosing.
 3. Loyiha (Google Cloud project) tanlang yoki yangisini yarating, kalitni nusxalang (`AIza...` bilan boshlanadi).
-4. ⚠️ **Veo pullik model.** Bepul (free tier) kalit bilan Veo ishlamaydi — xuddi shu loyiha uchun **billing**ni yoqing: AI Studio → API key yonidagi **Set up billing** (yoki Google Cloud Console → Billing). Narxlar sekundiga hisoblanadi, hozirgi narxni https://ai.google.dev/gemini-api/docs/pricing sahifasidan tekshiring. Arzonroq variant: `-fast-` modellar.
+4. ⚠️ **Veo pullik model.** Bepul (free tier) kalit bilan Veo ishlamaydi — xuddi shu loyiha uchun **billing**ni yoqing: AI Studio → API key yonidagi **Set up billing** (yoki Google Cloud Console → Billing). Narxlar sekundiga hisoblanadi, hozirgi narxni https://ai.google.dev/gemini-api/docs/pricing sahifasidan tekshiring. Arzonroq variantlar: `veo-3.1-fast-generate-preview` va `veo-3.1-lite-generate-preview`.
 
 ## 2. Environment o'zgaruvchilari
 
