@@ -39,7 +39,7 @@ export function renderHome({ jobs, models }: { jobs: Job[]; models: Record<strin
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Veo MCP Server</title>
+<title>Video MCP Server</title>
 <style>
   :root { --bg:#f6f7f9; --fg:#14161a; --muted:#6b7280; --card:#fff; --line:#e5e7eb; --ok:#15803d; --bad:#b91c1c; --accent:#2563eb; }
   @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --fg:#e8eaed; --muted:#9aa0a6; --card:#181b21; --line:#2a2f37; --ok:#4ade80; --bad:#f87171; --accent:#60a5fa; } }
@@ -66,8 +66,8 @@ export function renderHome({ jobs, models }: { jobs: Job[]; models: Record<strin
 </head>
 <body>
 <main>
-  <h1>🎬 Veo MCP Server</h1>
-  <p class="muted">Google Veo orqali video yaratish uchun Claude connector'i.</p>
+  <h1>🎬 Video MCP Server</h1>
+  <p class="muted">Google Gemini Omni orqali video yaratish uchun Claude connector'i.</p>
   <section class="status">
     <span class="ok">● Server ishlayapti</span>
     <span class="${keyOk ? "ok" : "bad"}">${keyOk ? "● GEMINI_API_KEY o'rnatilgan" : "● GEMINI_API_KEY o'rnatilmagan!"}</span>
@@ -77,7 +77,7 @@ export function renderHome({ jobs, models }: { jobs: Job[]; models: Record<strin
   ${
     jobs.length
       ? `<section class="grid">${jobs.map(card).join("")}</section>`
-      : `<p class="muted">Hali video yo'q. Claude'da: “Veo bilan … haqida video yarat” deb yozing.</p>`
+      : `<p class="muted">Hali video yo'q. Claude'da: “… haqida video yarat” deb yozing.</p>`
   }
   <details style="margin-top:28px"><summary class="muted">Mavjud modellar</summary>
     <ul>${Object.entries(models).map(([id, label]) => `<li><code>${esc(id)}</code> — ${esc(label)}</li>`).join("")}</ul>

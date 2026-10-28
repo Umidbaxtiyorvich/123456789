@@ -21,6 +21,16 @@ export function explainOperationError(error: Record<string, unknown>): string {
   return explain(grpcToHttp(code), message);
 }
 
+/** Explains a failed Interactions API job ({ status, errors: [{ code, message }] }). */
+export function explainInteractionErrors(status: string | undefined, errors?: Array<{ code?: string; message?: string }>): string {
+  const list = errors?.filter((e) => e.code || e.message) ?? [];
+  if (!list.length) return `Generation ended with status "${status ?? "unknown"}" and no error details. Try again.`;
+  const codeStatus: Record<string, number> = { RESOURCE_EXHAUSTED: 429, PERMISSION_DENIED: 403, NOT_FOUND: 404, INVALID_ARGUMENT: 400, UNAUTHENTICATED: 401, INTERNAL: 500, UNAVAILABLE: 503 };
+  const first = list[0];
+  const raw = list.map((e) => [e.code, e.message].filter(Boolean).join(": ")).join(" | ");
+  return explain(first.code ? codeStatus[first.code] : undefined, raw);
+}
+
 function grpcToHttp(code?: number): number | undefined {
   // google.rpc.Code -> HTTP status
   const map: Record<number, number> = { 3: 400, 5: 404, 7: 403, 8: 429, 9: 400, 13: 500, 14: 503, 16: 401 };
@@ -37,18 +47,23 @@ function explain(status: number | undefined, raw: string): string {
       "(API kalit noto'g'ri — aistudio.google.com/apikey dan yangi kalit oling.)" + detail
     );
   }
-  if (msg.includes("billing") || msg.includes("paid tier") || (msg.includes("free tier") && msg.includes("not available"))) {
+  if (
+    msg.includes("billing") ||
+    msg.includes("paid tier") ||
+    (msg.includes("free tier") && (msg.includes("not available") || msg.includes("limit: 0")))
+  ) {
     return (
-      "BILLING NOT ENABLED: Veo requires a Gemini API key from a Google Cloud project with billing enabled (paid tier). " +
+      "BILLING NOT ENABLED: Video generation has no free quota (Free Tier limit is 0) — it needs a Gemini API key from a Google Cloud project with billing enabled (paid tier). " +
       "Open https://aistudio.google.com → Settings → Billing / Usage and set up billing for the project. " +
-      "(Veo faqat billing yoqilgan loyihada ishlaydi.)" + detail
+      "(Video yaratish faqat billing yoqilgan loyihada ishlaydi.)" + detail
     );
   }
   if (status === 429 || msg.includes("resource_exhausted") || msg.includes("quota")) {
     return (
-      "QUOTA EXCEEDED: the rate limit or daily quota for this Veo model is used up. Wait a few minutes (or until the daily reset), " +
-      "try a different model (e.g. a -fast- one) or raise limits at https://aistudio.google.com/usage. " +
-      "(Kvota tugadi — biroz kuting yoki boshqa model tanlang.)" + detail
+      "QUOTA EXCEEDED: the rate limit or daily quota for this model is used up. Wait a few minutes (or until the daily reset), " +
+      "or raise limits at https://aistudio.google.com/usage. If this happens on the very first request, the key is probably on the Free Tier: " +
+      "enable billing for its project. " +
+      "(Kvota tugadi — biroz kuting; birinchi so'rovdayoq chiqsa, billingni yoqing.)" + detail
     );
   }
   if (msg.includes("safety") || msg.includes("blocked") || msg.includes("responsible ai") || msg.includes("violat") || msg.includes("prohibited")) {
@@ -58,12 +73,12 @@ function explain(status: number | undefined, raw: string): string {
     );
   }
   if (status === 404 || (msg.includes("not found") && msg.includes("model"))) {
-    return "MODEL NOT FOUND: this Veo model name is not available for your API key. Try veo-3.1-generate-preview or veo-3.1-fast-generate-preview." + detail;
+    return "MODEL NOT FOUND: this model name is not available for your API key. Use gemini-omni-1.1-flash (or gemini-omni-flash-preview)." + detail;
   }
   if (status === 403 || msg.includes("permission_denied")) {
     return (
-      "PERMISSION DENIED: this API key cannot use Veo (the Generative Language API may be disabled, the key may be restricted, " +
-      "or Veo is not available in your region / for your account)." + detail
+      "PERMISSION DENIED: this API key cannot use this model (the Generative Language API may be disabled, the key may be restricted, " +
+      "or video generation is not available in your region / for your account)." + detail
     );
   }
   if (status === 400 || msg.includes("invalid_argument")) {

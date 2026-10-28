@@ -89,7 +89,7 @@ setInterval(() => {
 setInterval(cleanupOld, 60 * 60 * 1000).unref();
 
 app.listen(config.port, () => {
-  console.log(`Veo MCP server listening on port ${config.port}`);
+  console.log(`Video MCP server listening on port ${config.port}`);
   console.log(`Homepage:      ${config.publicBaseUrl}/`);
   console.log(`MCP endpoint:  ${config.publicBaseUrl}/mcp/<ACCESS_TOKEN>`);
 });

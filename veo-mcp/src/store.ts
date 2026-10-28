@@ -6,7 +6,9 @@ export type JobStatus = "pending" | "done" | "failed";
 
 export interface Job {
   id: string;
-  operationName: string;
+  /** "interactions" for Gemini Interactions API jobs; absent for old Veo predictLongRunning jobs. */
+  api?: "interactions";
+  operationName: string; // interaction id (or Veo operation name for old jobs)
   prompt: string;
   negativePrompt?: string;
   model: string;

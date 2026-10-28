@@ -37,24 +37,26 @@ const modelList = Object.entries(MODELS)
   .join("; ");
 
 export function createMcpServer(): McpServer {
-  const server = new McpServer({ name: "veo-video", version: "1.0.0" });
+  const server = new McpServer({ name: "veo-video", version: "2.0.0" });
 
   server.registerTool(
     "generate_video",
     {
-      title: "Generate video with Veo",
+      title: "Generate video",
       description:
-        "Starts generating an ~8 second video with audio using Google Veo. Returns an operation_id immediately; " +
+        `Starts generating a ~${config.durationSeconds} second video with native audio (sound effects, music and spoken dialogue) using Google Gemini Omni ` +
+          "through the Gemini Interactions API. Returns an operation_id immediately; " +
         "generation usually takes 1–6 minutes. Then call check_video_status with that operation_id (wait ~30–60 s between checks). " +
-        "Write the prompt in English for best results; describe subject, action, camera, style, and any dialogue or sounds.",
+        "Write the prompt in English for best results; describe subject, action, camera, style, and any dialogue (in quotes) or sounds. " +
+        `Available models: ${modelList}.`,
       inputSchema: {
         prompt: z.string().min(1).max(4000).describe("Detailed description of the video, including sound/dialogue if wanted."),
         aspect_ratio: z.enum(["9:16", "16:9"]).default("9:16").describe('"9:16" vertical (default, Reels/Shorts) or "16:9" horizontal.'),
         model: z
           .string()
           .optional()
-          .describe(`Veo model. Default: ${config.defaultModel}. Options: ${modelList}.`),
-        negative_prompt: z.string().max(2000).optional().describe("Things the video should NOT contain, e.g. \"text, watermark, blurry\"."),
+          .describe(`Model name, passed to the API as-is. Default: ${config.defaultModel}. Available: ${Object.keys(MODELS).join(", ")}.`),
+        negative_prompt: z.string().max(2000).optional().describe("Things the video should NOT contain, e.g. \"text, watermark, blurry\". Appended to the prompt as \"Do not include: …\"."),
       },
       annotations: { readOnlyHint: false, openWorldHint: true },
     },
@@ -79,7 +81,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Check video status",
       description:
-        "Checks a Veo generation started by generate_video. If done, returns download_url (a public .mp4 link). " +
+        "Checks a video generation started by generate_video. If done, returns download_url (a public .mp4 link). " +
         "If still pending, wait 30–60 seconds and check again. If failed or blocked by safety filters, returns the reason.",
       inputSchema: {
         operation_id: z.string().min(1).describe("The operation_id returned by generate_video."),

@@ -26,14 +26,14 @@ export const config = {
   videosDir: path.join(dataDir, "videos"),
   dbFile: path.join(dataDir, "db.json"),
   retentionDays: Number(process.env.RETENTION_DAYS) || 7,
-  defaultModel: process.env.DEFAULT_VEO_MODEL?.trim() || "veo-3.1-generate-preview",
+  defaultModel: process.env.DEFAULT_VIDEO_MODEL?.trim() || process.env.DEFAULT_VEO_MODEL?.trim() || "gemini-omni-1.1-flash",
+  durationSeconds: Number(process.env.VIDEO_DURATION_SECONDS) || 8,
 };
 
-/** Veo models available through the Gemini API (all Veo 3.x models generate audio natively). */
+/** Video models served by the Gemini Interactions API (both generate audio and dialogue natively). */
 export const MODELS: Record<string, string> = {
-  "veo-3.1-generate-preview": "Veo 3.1 — eng yuqori sifat, ovoz bilan",
-  "veo-3.1-fast-generate-preview": "Veo 3.1 Fast — tezroq va arzonroq, ovoz bilan",
-  "veo-3.1-lite-generate-preview": "Veo 3.1 Lite — eng arzon, ovoz bilan",
+  "gemini-omni-1.1-flash": "Gemini Omni 1.1 Flash — barqaror, ovoz va dialog bilan (standart)",
+  "gemini-omni-flash-preview": "Gemini Omni Flash Preview — sinov versiyasi, ovoz bilan",
 };
 
 export function validateConfig(): void {

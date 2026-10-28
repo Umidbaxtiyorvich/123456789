@@ -3,9 +3,9 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { GoogleGenAI, GenerateVideosOperation } from "@google/genai";
+import { GoogleGenAI, GenerateVideosOperation, type GoogleGenAIInteraction } from "@google/genai";
 import { config } from "./config.js";
-import { explainError, explainOperationError } from "./errors.js";
+import { explainError, explainInteractionErrors, explainOperationError } from "./errors.js";
 import { addJob, getJob, updateJob, type Job } from "./store.js";
 
 let client: GoogleGenAI | undefined;
@@ -31,31 +31,37 @@ export interface StartParams {
   negativePrompt?: string;
 }
 
+/** The Interactions API has no negative prompt field, so the exclusions go into the prompt text. */
+function buildInput(prompt: string, negativePrompt?: string): string {
+  return negativePrompt ? `${prompt}\n\nDo not include: ${negativePrompt}.` : prompt;
+}
+
 export async function startGeneration(p: StartParams): Promise<Job> {
   const model = p.model?.trim() || config.defaultModel;
-  if (!/^veo-[a-z0-9.\-]+$/i.test(model)) {
-    throw new UserError(`Invalid model "${model}". Use a Veo model name such as veo-3.1-generate-preview.`);
-  }
 
-  let operation: GenerateVideosOperation;
+  let interaction: GoogleGenAIInteraction;
   try {
-    operation = await ai().models.generateVideos({
+    interaction = await ai().interactions.create({
       model,
-      prompt: p.prompt,
-      config: {
-        aspectRatio: p.aspectRatio,
-        ...(p.negativePrompt ? { negativePrompt: p.negativePrompt } : {}),
+      input: buildInput(p.prompt, p.negativePrompt),
+      background: true,
+      response_format: {
+        type: "video",
+        aspect_ratio: p.aspectRatio,
+        duration: `${config.durationSeconds}s`,
+        delivery: "uri",
       },
     });
   } catch (err) {
     if (err instanceof UserError) throw err;
     throw new UserError(explainError(err));
   }
-  if (!operation.name) throw new UserError("Gemini did not return an operation name. Try again.");
+  if (!interaction.id) throw new UserError("Gemini did not return an interaction id. Try again.");
 
   const job: Job = {
     id: crypto.randomBytes(9).toString("base64url"),
-    operationName: operation.name,
+    api: "interactions",
+    operationName: interaction.id,
     prompt: p.prompt,
     negativePrompt: p.negativePrompt,
     model,
@@ -64,6 +70,10 @@ export async function startGeneration(p: StartParams): Promise<Job> {
     createdAt: new Date().toISOString(),
   };
   addJob(job);
+  // The background job can fail instantly (e.g. quota); record that right away.
+  if (interaction.status && interaction.status !== "in_progress" && interaction.status !== "queued") {
+    return finishInteraction(job, interaction);
+  }
   return job;
 }
 
@@ -77,66 +87,89 @@ export function refreshJob(id: string): Promise<Job> {
 
   let p = inFlight.get(id);
   if (!p) {
-    p = poll(job).finally(() => inFlight.delete(id));
+    p = (job.api === "interactions" ? pollInteraction(job) : pollLegacyVeo(job)).finally(() => inFlight.delete(id));
     inFlight.set(id, p);
   }
   return p;
 }
 
-async function poll(job: Job): Promise<Job> {
+async function pollInteraction(job: Job): Promise<Job> {
+  let interaction: GoogleGenAIInteraction;
+  try {
+    interaction = await ai().interactions.get(job.operationName);
+  } catch (err) {
+    if (err instanceof UserError) throw err;
+    // A transient polling error does not mean the generation failed; report it but keep the job pending.
+    throw new UserError(`Could not check the generation right now. ${explainError(err)}`);
+  }
+  if (interaction.status === "in_progress" || interaction.status === "queued") return job;
+  return finishInteraction(job, interaction);
+}
+
+async function finishInteraction(job: Job, interaction: GoogleGenAIInteraction): Promise<Job> {
+  if (interaction.status !== "completed") {
+    return fail(job, explainInteractionErrors(interaction.status, interaction.errors));
+  }
+  // The video is normally in output_video; fall back to the model_output steps.
+  let video = interaction.output_video;
+  for (const step of interaction.steps ?? []) {
+    if (video) break;
+    if (step.type === "model_output") video = step.content?.find((c) => c.type === "video") as typeof video;
+  }
+  if (!video?.uri && !video?.data) {
+    const text = interaction.output_text?.trim();
+    return fail(
+      job,
+      "Generation finished but Gemini returned no video." + (text ? ` Model said: "${text.slice(0, 500)}"` : "") +
+        " This usually means the prompt was refused by safety filters — rephrase it and try again.",
+    );
+  }
+  return saveVideo(job, video);
+}
+
+/** Polls a generation started with the old Veo predictLongRunning API (jobs created before the migration). */
+async function pollLegacyVeo(job: Job): Promise<Job> {
   const op = new GenerateVideosOperation();
   op.name = job.operationName;
-
   let result: GenerateVideosOperation;
   try {
     result = await ai().operations.getVideosOperation({ operation: op });
   } catch (err) {
-    if (err instanceof UserError) throw err;
-    // A transient polling error does not mean the generation failed; report it but keep the job pending.
-    throw new UserError(`Could not check the operation right now. ${explainError(err)}`);
+    return fail(job, `This old Veo job can no longer be checked. ${explainError(err)}`);
   }
-
   if (!result.done) return job;
-
-  if (result.error) {
-    return fail(job, explainOperationError(result.error));
+  if (result.error) return fail(job, explainOperationError(result.error));
+  const video = result.response?.generatedVideos?.[0]?.video;
+  if (!video?.uri && !video?.videoBytes) {
+    const reasons = result.response?.raiMediaFilteredReasons?.filter(Boolean) ?? [];
+    return fail(job, "BLOCKED BY SAFETY FILTERS. Google's reason: " + (reasons.join(" | ") || "no reason given."));
   }
+  return saveVideo(job, { uri: video.uri, data: video.videoBytes });
+}
 
-  const response = result.response;
-  const video = response?.generatedVideos?.[0]?.video;
-  if (!video) {
-    const reasons = response?.raiMediaFilteredReasons?.filter(Boolean) ?? [];
-    if (reasons.length || response?.raiMediaFilteredCount) {
-      return fail(
-        job,
-        "BLOCKED BY SAFETY FILTERS (Xavfsizlik filtri videoni blokladi). Google's reason: " +
-          (reasons.length ? reasons.join(" | ").replace(/\.?\s*$/, ".") : "no reason given.") +
-          " Rephrase the prompt and try again.",
-      );
-    }
-    return fail(job, "Generation finished but Gemini returned no video and no reason. Try again with a different prompt.");
-  }
-
+async function saveVideo(job: Job, video: { uri?: string; data?: string }): Promise<Job> {
   const file = `${job.id}.mp4`;
   const dest = path.join(config.videosDir, file);
   try {
-    if (video.videoBytes) {
-      fs.writeFileSync(dest, Buffer.from(video.videoBytes, "base64"));
-    } else if (video.uri) {
-      await download(video.uri, dest);
+    if (video.data) {
+      fs.writeFileSync(dest, Buffer.from(video.data, "base64"));
     } else {
-      return fail(job, "Gemini returned a video without a download link.");
+      await download(video.uri!, dest);
     }
   } catch (err) {
     fs.rmSync(dest, { force: true });
-    // Keep the job pending so the next check retries the download (Google keeps the file for 2 days).
+    // Keep the job pending so the next check retries the download.
     throw new UserError(`The video is ready but downloading it failed: ${err instanceof Error ? err.message : err}. Call check_video_status again.`);
   }
-
   return updateJob(job.id, { status: "done", file, completedAt: new Date().toISOString() })!;
 }
 
 async function download(uri: string, dest: string): Promise<void> {
+  // A bare resource name like "files/abc" is downloaded through the Files API.
+  if (!/^https?:\/\//.test(uri)) {
+    const base = (config.geminiBaseUrl || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
+    uri = `${base}/v1beta/${uri.replace(/^\/+/, "")}:download?alt=media`;
+  }
   const res = await fetch(uri, { headers: { "x-goog-api-key": config.geminiApiKey }, redirect: "follow" });
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} ${res.statusText}`);
   const tmp = `${dest}.part`;
